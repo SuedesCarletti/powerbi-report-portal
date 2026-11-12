@@ -1,0 +1,886 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciar Usuários - Portal Power BI{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="display-6 fw-bold text-primary">
+                    <i class="fas fa-users me-3"></i>Gerenciar Usuários
+                </h1>
+                <p class="text-muted">Controle usuários e suas permissões de acesso</p>
+            </div>
+            <div>
+                <a href="{{ url_for('admin') }}" class="btn btn-outline-primary me-2">
+                    <i class="fas fa-arrow-left me-2"></i>Voltar
+                </a>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                    <i class="fas fa-user-plus me-2"></i>Novo Usuário
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumo -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                <h4>{{ users | length }}</h4>
+                <p class="text-muted mb-0">Total de Usuários</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-user-check fa-2x text-success mb-2"></i>
+                <h4>{{ users | selectattr('active') | list | length }}</h4>
+                <p class="text-muted mb-0">Usuários Ativos</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-user-shield fa-2x text-warning mb-2"></i>
+                <h4>{{ users | selectattr('role', 'equalto', 'admin') | list | length }}</h4>
+                <p class="text-muted mb-0">Administradores</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-chart-bar fa-2x text-info mb-2"></i>
+                <h4>{{ reports | length }}</h4>
+                <p class="text-muted mb-0">Relatórios Disponíveis</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Usuários -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-list me-2"></i>Usuários Cadastrados
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if users %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Usuário</th>
+                                    <th>Email</th>
+                                    <th>Perfil</th>
+                                    <th>Status</th>
+                                    <th>Tipo de Acesso</th>
+                                    <th>Permissões</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-user-circle text-primary me-2 fa-lg"></i>
+                                            <div>
+                                                <strong>{{ user.username }}</strong>
+                                                {% if user.role == 'admin' %}
+                                                    <span class="badge bg-warning text-dark ms-1">Admin</span>
+                                                {% endif %}
+                                                {% if user.id == current_user.id %}
+                                                    <small class="text-muted d-block">(Você)</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>{{ user.email }}</td>
+                                    <td>
+                                        {% if user.role == 'admin' %}
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-shield-alt me-1"></i>Administrador
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-primary">
+                                                <i class="fas fa-user me-1"></i>Usuário
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user.get('active', True) %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check me-1"></i>Ativo
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">
+                                                <i class="fas fa-pause me-1"></i>Inativo
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set user_perms = permissions.get(user.id, {}) %}
+                                        {% if user.role == 'admin' %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-crown me-1"></i>Acesso Total (Admin)
+                                            </span>
+                                        {% elif user_perms.get('all_access', False) %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-globe me-1"></i>Acesso Total
+                                            </span>
+                                        {% elif user_perms.get('type') == 'category' %}
+                                            <span class="badge bg-info">
+                                                <i class="fas fa-tags me-1"></i>Por Categoria
+                                            </span>
+                                        {% elif user_perms.get('type') == 'specific' %}
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-file-alt me-1"></i>Relatórios Específicos
+                                            </span>
+                                        {% elif user_perms.get('type') == 'mixed' %}
+                                            <span class="badge bg-purple">
+                                                <i class="fas fa-layer-group me-1"></i>Misto
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">
+                                                <i class="fas fa-ban me-1"></i>Sem Acesso
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user.role == 'admin' %}
+                                            <span class="text-muted">
+                                                <i class="fas fa-infinity me-1"></i>Todos os relatórios
+                                            </span>
+                                        {% elif user_perms %}
+                                            {% set categories_count = user_perms.get('categories', []) | length %}
+                                            {% set reports_count = user_perms.get('reports', []) | length %}
+                                            
+                                            {% if user_perms.get('all_access', False) %}
+                                                <span class="text-success">
+                                                    <i class="fas fa-check-circle me-1"></i>Acesso completo
+                                                </span>
+                                            {% elif categories_count > 0 or reports_count > 0 %}
+                                                <div class="small">
+                                                    {% if categories_count > 0 %}
+                                                        <span class="badge bg-light text-dark me-1">
+                                                            {{ categories_count }} categoria(s)
+                                                        </span>
+                                                    {% endif %}
+                                                    {% if reports_count > 0 %}
+                                                        <span class="badge bg-light text-dark">
+                                                            {{ reports_count }} relatório(s)
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
+                                            {% else %}
+                                                <span class="text-muted">Nenhuma permissão</span>
+                                            {% endif %}
+                                            
+                                            <button class="btn btn-sm btn-outline-info ms-1" 
+                                                    onclick="showPermissions('{{ user.id }}', '{{ user.username }}')">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        {% else %}
+                                            <span class="text-muted">Nenhuma permissão</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            {% if user.role != 'admin' %}
+                                                <button class="btn btn-outline-primary" 
+                                                        onclick="manageUserPermissions('{{ user.id }}', '{{ user.username }}')" 
+                                                        title="Gerenciar Permissões">
+                                                    <i class="fas fa-key"></i>
+                                                </button>
+                                            {% endif %}
+                                            
+                                            {% if user.id != current_user.id %}
+                                                <a href="{{ url_for('toggle_user', user_id=user.id) }}" 
+                                                   class="btn btn-outline-info" 
+                                                   title="{% if user.get('active', True) %}Desativar{% else %}Ativar{% endif %}">
+                                                    <i class="fas fa-{% if user.get('active', True) %}pause{% else %}play{% endif %}"></i>
+                                                </a>
+                                                <button class="btn btn-outline-danger" 
+                                                        onclick="confirmDeleteUser('{{ user.id }}', '{{ user.username }}')" 
+                                                        title="Excluir">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            {% else %}
+                                                <span class="btn btn-outline-secondary disabled" title="Não é possível alterar sua própria conta">
+                                                    <i class="fas fa-lock"></i>
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Nenhum usuário cadastrado</h5>
+                        <p class="text-muted">Clique em "Novo Usuário" para começar</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Adicionar Usuário -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-user-plus me-2"></i>Adicionar Novo Usuário
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_user') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Nome de Usuário *</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                        <div class="form-text">Nome único para login</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email *</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                        <div class="form-text">Email para login e comunicações</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Senha *</label>
+                        <input type="password" class="form-control" id="password" name="password" required minlength="6">
+                        <div class="form-text">Mínimo de 6 caracteres</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Perfil</label>
+                        <select class="form-select" id="role" name="role">
+                            <option value="user">Usuário</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                        <div class="form-text">Administradores têm acesso total</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Criar Usuário
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Gerenciar Permissões Avançado -->
+<div class="modal fade" id="permissionsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-key me-2"></i>Permissões Avançadas: <span id="permissionUserName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="permissionsForm">
+                <div class="modal-body">
+                    <!-- Seleção do Tipo de Permissão -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-cog me-2"></i>Tipo de Acesso:
+                        </label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="permission_type" id="permission_none" value="none">
+                                    <label class="form-check-label" for="permission_none">
+                                        <strong>Sem Acesso</strong>
+                                        <small class="text-muted d-block">Usuário não pode ver nenhum relatório</small>
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mt-3">
+                                    <input class="form-check-input" type="radio" name="permission_type" id="permission_all" value="all">
+                                    <label class="form-check-label" for="permission_all">
+                                        <strong>Acesso Total</strong>
+                                        <small class="text-muted d-block">Usuário pode ver todos os relatórios</small>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="permission_type" id="permission_category" value="category">
+                                    <label class="form-check-label" for="permission_category">
+                                        <strong>Por Categoria</strong>
+                                        <small class="text-muted d-block">Acesso a categorias específicas</small>
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mt-3">
+                                    <input class="form-check-input" type="radio" name="permission_type" id="permission_specific" value="specific">
+                                    <label class="form-check-label" for="permission_specific">
+                                        <strong>Relatórios Específicos</strong>
+                                        <small class="text-muted d-block">Acesso a relatórios individuais</small>
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mt-3">
+                                    <input class="form-check-input" type="radio" name="permission_type" id="permission_mixed" value="mixed">
+                                    <label class="form-check-label" for="permission_mixed">
+                                        <strong>Misto</strong>
+                                        <small class="text-muted d-block">Categorias + relatórios específicos</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Seleção de Categorias -->
+                    <div class="mb-4" id="categoriesSection" style="display: none;">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-tags me-2"></i>Categorias Permitidas:
+                        </label>
+                        <div class="row" id="categoriesCheckboxes">
+                            {% for category in categories %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" 
+                                               type="checkbox" 
+                                               value="{{ category }}" 
+                                               id="category_{{ loop.index }}"
+                                               name="categories">
+                                        <label class="form-check-label" for="category_{{ loop.index }}">
+                                            <i class="fas fa-tag me-2 text-primary"></i>
+                                            <strong>{{ category }}</strong>
+                                            <small class="text-muted d-block">
+                                                {{ reports | selectattr('category', 'equalto', category) | list | length }} relatório(s)
+                                            </small>
+                                        </label>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        
+                        {% if not categories %}
+                            <div class="text-center py-3">
+                                <i class="fas fa-tags fa-2x text-muted mb-2"></i>
+                                <p class="text-muted">Nenhuma categoria disponível</p>
+                                <a href="{{ url_for('admin') }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-plus me-1"></i>Adicionar Relatórios
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Seleção de Relatórios -->
+                    <div class="mb-4" id="reportsSection" style="display: none;">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-chart-bar me-2"></i>Relatórios Específicos:
+                        </label>
+                        <div class="row" id="reportsCheckboxes">
+                            {% for report in reports %}
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" 
+                                               type="checkbox" 
+                                               value="{{ report.id }}" 
+                                               id="report_{{ report.id }}"
+                                               name="reports">
+                                        <label class="form-check-label" for="report_{{ report.id }}">
+                                            <div class="d-flex align-items-start">
+                                                <i class="fas fa-chart-line me-2 text-primary mt-1"></i>
+                                                <div>
+                                                    <strong>{{ report.title }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-tag me-1"></i>{{ report.category }}
+                                                    </small>
+                                                    {% if report.description %}
+                                                        <br>
+                                                        <small class="text-muted">{{ report.description[:50] }}{% if report.description|length > 50 %}...{% endif %}</small>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        
+                        {% if not reports %}
+                            <div class="text-center py-3">
+                                <i class="fas fa-chart-bar fa-2x text-muted mb-2"></i>
+                                <p class="text-muted">Nenhum relatório disponível</p>
+                                <a href="{{ url_for('admin') }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-plus me-1"></i>Adicionar Relatórios
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Resumo das Permissões -->
+                    <div class="alert alert-info" id="permissionsSummary" style="display: none;">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Resumo:</strong> <span id="summaryText"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Salvar Permissões
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Visualizar Permissões -->
+<div class="modal fade" id="viewPermissionsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-eye me-2"></i>Permissões de: <span id="viewPermissionUserName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="userPermissionsList">
+                    <!-- Lista será preenchida dinamicamente -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" onclick="editPermissionsFromView()">
+                    <i class="fas fa-edit me-2"></i>Editar Permissões
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmar Exclusão -->
+<div class="modal fade" id="confirmDeleteUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-danger me-2"></i>Confirmar Exclusão
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza de que deseja excluir o usuário <strong id="deleteUserName"></strong>?</p>
+                <p class="text-muted">Esta ação não pode ser desfeita e todas as permissões do usuário serão removidas.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <a href="#" id="confirmDeleteUserBtn" class="btn btn-danger">
+                    <i class="fas fa-trash me-2"></i>Excluir Usuário
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .bg-purple {
+        background-color: #6f42c1 !important;
+    }
+    
+    .form-check-label {
+        cursor: pointer;
+    }
+    
+    .form-check-input:checked + .form-check-label {
+        color: var(--primary-color);
+        font-weight: 500;
+    }
+    
+    #permissionsSummary {
+        transition: all 0.3s ease;
+    }
+    
+    .permission-card {
+        border: 2px solid #e9ecef;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+    
+    .permission-card.selected {
+        border-color: var(--primary-color);
+        background-color: rgba(0, 120, 212, 0.05);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Dados para JavaScript
+    const users = {{ users | tojson }};
+    const permissions = {{ permissions | tojson }};
+    const reports = {{ reports | tojson }};
+    const categories = {{ categories | tojson }};
+    
+    let currentUserId = null;
+    let currentUserName = null;
+
+    async function manageUserPermissions(userId, username) {
+        currentUserId = userId;
+        currentUserName = username;
+        
+        document.getElementById('permissionUserName').textContent = username;
+        document.getElementById('permissionsForm').action = `/manage_permissions/${userId}`;
+        
+        // Buscar permissões atuais do usuário
+        try {
+            const response = await fetch(`/get_user_permissions/${userId}`);
+            const userPermissions = await response.json();
+            
+            // Limpar seleções
+            clearAllSelections();
+            
+            // Definir tipo de permissão
+            const permissionType = userPermissions.type || 'none';
+            document.querySelector(`input[name="permission_type"][value="${permissionType}"]`).checked = true;
+            
+            // Marcar categorias selecionadas
+            const userCategories = userPermissions.categories || [];
+            userCategories.forEach(category => {
+                const checkbox = document.querySelector(`input[name="categories"][value="${category}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+            
+            // Marcar relatórios selecionados
+            const userReports = userPermissions.reports || [];
+            userReports.forEach(reportId => {
+                const checkbox = document.querySelector(`input[name="reports"][value="${reportId}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+            
+            // Atualizar interface
+            updatePermissionInterface();
+            
+        } catch (error) {
+            console.error('Erro ao carregar permissões:', error);
+            // Definir padrões em caso de erro
+            clearAllSelections();
+            document.querySelector('input[name="permission_type"][value="none"]').checked = true;
+            updatePermissionInterface();
+        }
+        
+        new bootstrap.Modal(document.getElementById('permissionsModal')).show();
+    }
+
+    function clearAllSelections() {
+        // Limpar radio buttons
+        document.querySelectorAll('input[name="permission_type"]').forEach(radio => {
+            radio.checked = false;
+        });
+        
+        // Limpar checkboxes de categorias
+        document.querySelectorAll('input[name="categories"]').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        
+        // Limpar checkboxes de relatórios
+        document.querySelectorAll('input[name="reports"]').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    }
+
+    function updatePermissionInterface() {
+        const permissionType = document.querySelector('input[name="permission_type"]:checked');
+        const categoriesSection = document.getElementById('categoriesSection');
+        const reportsSection = document.getElementById('reportsSection');
+        const summaryDiv = document.getElementById('permissionsSummary');
+        const summaryText = document.getElementById('summaryText');
+        
+        // Ocultar todas as seções primeiro
+        categoriesSection.style.display = 'none';
+        reportsSection.style.display = 'none';
+        summaryDiv.style.display = 'none';
+        
+        if (!permissionType) return;
+        
+        const type = permissionType.value;
+        
+        switch (type) {
+            case 'none':
+                summaryText.textContent = 'Usuário não terá acesso a nenhum relatório.';
+                summaryDiv.style.display = 'block';
+                break;
+                
+            case 'all':
+                summaryText.textContent = 'Usuário terá acesso a TODOS os relatórios (atuais e futuros).';
+                summaryDiv.style.display = 'block';
+                break;
+                
+            case 'category':
+                categoriesSection.style.display = 'block';
+                updateCategorySummary();
+                break;
+                
+            case 'specific':
+                reportsSection.style.display = 'block';
+                updateReportsSummary();
+                break;
+                
+            case 'mixed':
+                categoriesSection.style.display = 'block';
+                reportsSection.style.display = 'block';
+                updateMixedSummary();
+                break;
+        }
+    }
+
+    function updateCategorySummary() {
+        const selectedCategories = Array.from(document.querySelectorAll('input[name="categories"]:checked')).map(cb => cb.value);
+        const summaryDiv = document.getElementById('permissionsSummary');
+        const summaryText = document.getElementById('summaryText');
+        
+        if (selectedCategories.length > 0) {
+            let totalReports = 0;
+            selectedCategories.forEach(category => {
+                totalReports += reports.filter(r => r.category === category).length;
+            });
+            
+            summaryText.textContent = `Usuário terá acesso a ${selectedCategories.length} categoria(s): ${selectedCategories.join(', ')} (${totalReports} relatório(s) no total).`;
+            summaryDiv.style.display = 'block';
+        } else {
+            summaryDiv.style.display = 'none';
+        }
+    }
+
+    function updateReportsSummary() {
+        const selectedReports = Array.from(document.querySelectorAll('input[name="reports"]:checked')).map(cb => cb.value);
+        const summaryDiv = document.getElementById('permissionsSummary');
+        const summaryText = document.getElementById('summaryText');
+        
+        if (selectedReports.length > 0) {
+            summaryText.textContent = `Usuário terá acesso a ${selectedReports.length} relatório(s) específico(s).`;
+            summaryDiv.style.display = 'block';
+        } else {
+            summaryDiv.style.display = 'none';
+        }
+    }
+
+    function updateMixedSummary() {
+        const selectedCategories = Array.from(document.querySelectorAll('input[name="categories"]:checked')).map(cb => cb.value);
+        const selectedReports = Array.from(document.querySelectorAll('input[name="reports"]:checked')).map(cb => cb.value);
+        const summaryDiv = document.getElementById('permissionsSummary');
+        const summaryText = document.getElementById('summaryText');
+        
+        if (selectedCategories.length > 0 || selectedReports.length > 0) {
+            let text = 'Usuário terá acesso a: ';
+            const parts = [];
+            
+            if (selectedCategories.length > 0) {
+                parts.push(`${selectedCategories.length} categoria(s)`);
+            }
+            
+            if (selectedReports.length > 0) {
+                parts.push(`${selectedReports.length} relatório(s) específico(s)`);
+            }
+            
+            summaryText.textContent = text + parts.join(' + ') + '.';
+            summaryDiv.style.display = 'block';
+        } else {
+            summaryDiv.style.display = 'none';
+        }
+    }
+
+    async function showPermissions(userId, username) {
+        document.getElementById('viewPermissionUserName').textContent = username;
+        
+        try {
+            const response = await fetch(`/get_user_permissions/${userId}`);
+            const userPermissions = await response.json();
+            const permissionsList = document.getElementById('userPermissionsList');
+            
+            let html = '';
+            
+            if (userPermissions.all_access) {
+                html = `
+                    <div class="alert alert-success">
+                        <i class="fas fa-globe fa-2x text-success mb-3"></i>
+                        <h5>Acesso Total</h5>
+                        <p>Este usuário tem acesso a todos os relatórios do sistema.</p>
+                    </div>
+                `;
+            } else if (userPermissions.type === 'none' || (!userPermissions.categories?.length && !userPermissions.reports?.length)) {
+                html = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-ban fa-2x text-warning mb-3"></i>
+                        <h5>Sem Acesso</h5>
+                        <p>Este usuário não tem permissão para acessar nenhum relatório.</p>
+                    </div>
+                `;
+            } else {
+                html = '<div class="row">';
+                
+                // Mostrar categorias
+                if (userPermissions.categories?.length > 0) {
+                    html += `
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-tags me-2"></i>Categorias Permitidas:</h6>
+                            <div class="list-group">
+                    `;
+                    
+                    userPermissions.categories.forEach(category => {
+                        const categoryReports = reports.filter(r => r.category === category);
+                        html += `
+                            <div class="list-group-item">
+                                <i class="fas fa-tag text-primary me-2"></i>
+                                <strong>${category}</strong>
+                                <br>
+                                <small class="text-muted">${categoryReports.length} relatório(s)</small>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div></div>';
+                }
+                
+                // Mostrar relatórios específicos
+                if (userPermissions.reports?.length > 0) {
+                    html += `
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-chart-bar me-2"></i>Relatórios Específicos:</h6>
+                            <div class="list-group">
+                    `;
+                    
+                    userPermissions.reports.forEach(reportId => {
+                        const report = reports.find(r => r.id === reportId);
+                        if (report) {
+                            html += `
+                                <div class="list-group-item">
+                                    <i class="fas fa-chart-line text-primary me-2"></i>
+                                    <strong>${report.title}</strong>
+                                    <br>
+                                    <small class="text-muted">${report.category}</small>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    html += '</div></div>';
+                }
+                
+                html += '</div>';
+            }
+            
+            permissionsList.innerHTML = html;
+            
+        } catch (error) {
+            console.error('Erro ao carregar permissões:', error);
+            document.getElementById('userPermissionsList').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Erro ao carregar permissões do usuário.
+                </div>
+            `;
+        }
+        
+        // Armazenar dados para possível edição
+        currentUserId = userId;
+        currentUserName = username;
+        
+        new bootstrap.Modal(document.getElementById('viewPermissionsModal')).show();
+    }
+
+    function editPermissionsFromView() {
+        // Fechar modal de visualização
+        bootstrap.Modal.getInstance(document.getElementById('viewPermissionsModal')).hide();
+        
+        // Abrir modal de edição
+        setTimeout(() => {
+            manageUserPermissions(currentUserId, currentUserName);
+        }, 300);
+    }
+
+    function confirmDeleteUser(userId, username) {
+        document.getElementById('deleteUserName').textContent = username;
+        document.getElementById('confirmDeleteUserBtn').href = `/delete_user/${userId}`;
+        new bootstrap.Modal(document.getElementById('confirmDeleteUserModal')).show();
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        // Listeners para mudanças no tipo de permissão
+        document.querySelectorAll('input[name="permission_type"]').forEach(radio => {
+            radio.addEventListener('change', updatePermissionInterface);
+        });
+        
+        // Listeners para mudanças nas categorias
+        document.querySelectorAll('input[name="categories"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const permissionType = document.querySelector('input[name="permission_type"]:checked')?.value;
+                if (permissionType === 'category') {
+                    updateCategorySummary();
+                } else if (permissionType === 'mixed') {
+                    updateMixedSummary();
+                }
+            });
+        });
+        
+        // Listeners para mudanças nos relatórios
+        document.querySelectorAll('input[name="reports"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const permissionType = document.querySelector('input[name="permission_type"]:checked')?.value;
+                if (permissionType === 'specific') {
+                    updateReportsSummary();
+                } else if (permissionType === 'mixed') {
+                    updateMixedSummary();
+                }
+            });
+        });
+        
+        // Validação do formulário de novo usuário
+        const addUserForm = document.querySelector('#addUserModal form');
+        if (addUserForm) {
+            addUserForm.addEventListener('submit', function(e) {
+                const password = this.querySelector('[name="password"]').value;
+                if (password.length < 6) {
+                    e.preventDefault();
+                    alert('A senha deve ter pelo menos 6 caracteres');
+                    return false;
+                }
+            });
+        }
+        
+        // Animação das linhas da tabela
+        document.querySelectorAll('tbody tr').forEach((row, index) => {
+            row.style.opacity = '0';
+            row.style.transform = 'translateX(-20px)';
+            setTimeout(() => {
+                row.style.transition = 'all 0.3s ease';
+                row.style.opacity = '1';
+                row.style.transform = 'translateX(0)';
+            }, index * 100);
+        });
+    });
+</script>
+{% endblock %}

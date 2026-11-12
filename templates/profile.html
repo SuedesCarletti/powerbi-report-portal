@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}Meu Perfil - Portal Power BI{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="display-6 fw-bold text-primary">
+                    <i class="fas fa-user me-3"></i>Meu Perfil
+                </h1>
+                <p class="text-muted">Gerencie suas informações e configurações</p>
+            </div>
+            <div>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Voltar aos Relatórios
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Informações do Usuário -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-id-card me-2"></i>Informações Pessoais
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="fas fa-user-circle fa-5x text-primary"></i>
+                </div>
+                <h4 class="card-title">{{ current_user.username }}</h4>
+                <p class="card-text text-muted">{{ current_user.email }}</p>
+                
+                {% if current_user.is_admin() %}
+                    <span class="badge bg-warning text-dark mb-3">
+                        <i class="fas fa-shield-alt me-1"></i>Administrador
+                    </span>
+                {% else %}
+                    <span class="badge bg-primary mb-3">
+                        <i class="fas fa-user me-1"></i>Usuário
+                    </span>
+                {% endif %}
+                
+                <div class="row text-center mt-4">
+                    <div class="col-6">
+                        <div class="border-end">
+                            <h5 class="text-primary">{{ user_reports | length }}</h5>
+                            <small class="text-muted">Relatórios</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h5 class="text-success">{{ current_user.role.title() }}</h5>
+                        <small class="text-muted">Perfil</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alterar Senha -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-lock me-2"></i>Alterar Senha
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('change_password') }}" id="passwordForm">
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label">Senha Atual</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="current_password" 
+                                   name="current_password" required>
+                            <button class="btn btn-outline-secondary" type="button" 
+                                    onclick="togglePasswordVisibility('current_password')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">Nova Senha</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="new_password" 
+                                   name="new_password" required minlength="6">
+                            <button class="btn btn-outline-secondary" type="button" 
+                                    onclick="togglePasswordVisibility('new_password')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Mínimo de 6 caracteres</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirmar Nova Senha</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="confirm_password" 
+                                   name="confirm_password" required minlength="6">
+                            <button class="btn btn-outline-secondary" type="button" 
+                                    onclick="togglePasswordVisibility('confirm_password')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Alterar Senha
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Relatórios Permitidos -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>Meus Relatórios
+                    {% if current_user.is_admin() %}
+                        <span class="badge bg-success ms-2">Acesso Total</span>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if current_user.is_admin() %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Como administrador, você tem acesso a todos os relatórios do sistema.
+                        <a href="{{ url_for('admin') }}" class="alert-link">Gerenciar relatórios</a>
+                    </div>
+                {% endif %}
+
+                {% if user_reports %}
+                    <div class="row g-3">
+                        {% for report in user_reports %}
+                            <div class="col-md-6">
+                                <div class="card h-100 report-card" onclick="openReport('{{ report.id }}')">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <span class="badge bg-secondary">{{ report.category }}</span>
+                                            <small class="text-muted">
+                                                {{ report.created_at[:10] if report.created_at else 'N/A' }}
+                                            </small>
+                                        </div>
+                                        <h6 class="card-title">
+                                            <i class="fas fa-chart-line me-2 text-primary"></i>
+                                            {{ report.title }}
+                                        </h6>
+                                        <p class="card-text text-muted small">
+                                            {{ report.description if report.description else 'Clique para visualizar este relatório' }}
+                                        </p>
+                                        <div class="d-grid">
+                                            <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); openReport('{{ report.id }}')">
+                                                <i class="fas fa-external-link-alt me-1"></i>Abrir
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Nenhum relatório disponível</h5>
+                        <p class="text-muted">
+                            {% if current_user.is_admin() %}
+                                Você pode <a href="{{ url_for('admin') }}">adicionar novos relatórios</a> na área de administração.
+                            {% else %}
+                                Entre em contato com o administrador para solicitar acesso aos relatórios.
+                            {% endif %}
+                        </p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Estatísticas de Uso -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>Estatísticas de Acesso
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-primary">{{ user_reports | length }}</h4>
+                            <small class="text-muted">Relatórios Permitidos</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-success" id="accessToday">0</h4>
+                            <small class="text-muted">Acessos Hoje</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-info">{{ user_reports | map(attribute='category') | unique | list | length }}</h4>
+                            <small class="text-muted">Categorias</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-warning" id="lastAccess">--:--</h4>
+                        <small class="text-muted">Último Acesso</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Atividade Recente -->
+        {% if current_user.is_admin() %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>Atividade Recente (Admin)
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-primary"></div>
+                        <div class="timeline-content">
+                            <h6 class="mb-1">Sistema Inicializado</h6>
+                            <small class="text-muted">Portal Power BI está funcionando corretamente</small>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-success"></div>
+                        <div class="timeline-content">
+                            <h6 class="mb-1">Perfil Acessado</h6>
+                            <small class="text-muted">Você acessou seu perfil agora</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card {
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .report-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+
+    .timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e9ecef;
+    }
+
+    .timeline-item {
+        position: relative;
+        margin-bottom: 30px;
+    }
+
+    .timeline-marker {
+        position: absolute;
+        left: -37px;
+        top: 0;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 3px solid white;
+        box-shadow: 0 0 0 2px #e9ecef;
+    }
+
+    .timeline-content {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 3px solid var(--primary-color);
+    }
+
+    .border-end {
+        border-right: 1px solid #e9ecef !important;
+    }
+
+    @media (max-width: 768px) {
+        .border-end {
+            border-right: none !important;
+            border-bottom: 1px solid #e9ecef !important;
+            margin-bottom: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function openReport(reportId) {
+        window.location.href = `/report/${reportId}`;
+    }
+
+    togglePasswordVisibility(fieldId) {
+        const field = document.getElementById(fieldId);
+        const button = field.nextElementSibling;
+        const icon = button.querySelector('i');
+        
+        if (field.type === 'password') {
+            field.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            field.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+
+    // Simular estatísticas (em produção, vem do backend)
+    function updateStats() {
+        document.getElementById('accessToday').textContent = Math.floor(Math.random() * 10) + 1;
+        
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('pt-BR', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        document.getElementById('lastAccess').textContent = timeString;
+    }
+
+    // Animação dos cards
+    document.addEventListener('DOMContentLoaded', function() {
+        updateStats();
+        
+        const cards = document.querySelectorAll('.report-card');
+        cards.forEach((card, index) => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                card.style.transition = 'all 0.5s ease';
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, index * 100);
+        });
+    });
+
+    // Feedback visual para alteração de senha
+    document.getElementById('new_password').addEventListener('input', function() {
+        const password = this.value;
+        const feedback = this.parentNode.nextElementSibling;
+        
+        if (password.length < 6) {
+            feedback.className = 'form-text text-danger';
+            feedback.textContent = 'Senha muito curta (mínimo 6 caracteres)';
+        } else if (password.length < 8) {
+            feedback.className = 'form-text text-warning';
+            feedback.textContent = 'Senha fraca (recomendado 8+ caracteres)';
+        } else {
+            feedback.className = 'form-text text-success';
+            feedback.textContent = 'Senha adequada';
+        }
+    });
+
+    // Verificar confirmação de senha em tempo real
+    document.getElementById('confirm_password').addEventListener('input', function() {
+        const newPassword = document.getElementById('new_password').value;
+        const confirmPassword = this.value;
+        
+        if (confirmPassword && newPassword !== confirmPassword) {
+            this.classList.add('is-invalid');
+            this.classList.remove('is-valid');
+        } else if (confirmPassword) {
+            this.classList.add('is-valid');
+            this.classList.remove('is-invalid');
+        } else {
+            this.classList.remove('is-valid', 'is-invalid');
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report.title }} - Portal Power BI{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-header {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        border-radius: 15px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+
+    .report-iframe {
+        width: 100%;
+        height: 80vh;
+        min-height: 600px;
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+    }
+
+    .report-iframe:hover {
+        box-shadow: 0 15px 50px rgba(0,0,0,0.15);
+    }
+
+    .fullscreen-btn {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        z-index: 1000;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+    }
+
+    .fullscreen-btn:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 25px rgba(0,0,0,0.3);
+    }
+
+    .report-controls {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255,255,255,0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10;
+        border-radius: 15px;
+    }
+
+    .report-container {
+        position: relative;
+        background: white;
+        border-radius: 15px;
+        padding: 1rem;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+
+    @media (max-width: 768px) {
+        .report-iframe {
+            height: 60vh;
+            min-height: 400px;
+        }
+
+        .fullscreen-btn {
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+        }
+
+        .report-header {
+            padding: 1.5rem;
+        }
+    }
+
+    .fullscreen-mode {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 9999;
+        background: white;
+        padding: 20px;
+    }
+
+    .fullscreen-mode .report-iframe {
+        height: calc(100vh - 80px);
+        width: 100%;
+    }
+
+    .exit-fullscreen {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Cabeçalho do Relatório -->
+<div class="report-header">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <div class="d-flex align-items-center mb-2">
+                <i class="fas fa-chart-line fa-2x me-3"></i>
+                <h1 class="mb-0">{{ report.title }}</h1>
+            </div>
+            {% if report.description %}
+                <p class="mb-0 opacity-75">{{ report.description }}</p>
+            {% endif %}
+        </div>
+        <div class="col-md-4 text-md-end">
+            <span class="badge bg-light text-dark fs-6 me-2">
+                <i class="fas fa-tag me-1"></i>{{ report.category }}
+            </span>
+            <small class="opacity-75 d-block mt-2">
+                <i class="fas fa-calendar me-1"></i>
+                Criado em {{ report.created_at[:10] if report.created_at else 'N/A' }}
+            </small>
+        </div>
+    </div>
+</div>
+
+<!-- Controles do Relatório -->
+<div class="report-controls">
+    <div class="row align-items-center">
+        <div class="col-md-6">
+            <div class="btn-group" role="group">
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Voltar aos Relatórios
+                </a>
+                <button class="btn btn-outline-secondary" onclick="refreshReport()" title="Atualizar">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button class="btn btn-outline-info" onclick="toggleFullscreen()" title="Tela Cheia">
+                    <i class="fas fa-expand"></i>
+                </button>
+            </div>
+        </div>
+        <div class="col-md-6 text-md-end">
+            <div class="btn-group" role="group">
+                {% if current_user.is_admin() %}
+                    <a href="{{ url_for('admin') }}" class="btn btn-outline-warning" title="Administração">
+                        <i class="fas fa-cog me-1"></i>Administração
+                    </a>
+                {% endif %}
+                <div class="dropdown d-inline-block">
+                    <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="reportIssue()">
+                            <i class="fas fa-exclamation-triangle me-2"></i>Reportar Problema
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="showReportInfo()">
+                            <i class="fas fa-info-circle me-2"></i>Informações do Relatório
+                        </a></li>
+                        <!-- Removido: O acesso direto ao PBI Service foi desabilitado por segurança. -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Container do Relatório -->
+<div class="report-container" id="reportContainer">
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <h5>Carregando relatório...</h5>
+            <p class="text-muted">Aguarde enquanto o Power BI carrega</p>
+        </div>
+    </div>
+
+    <!-- Iframe do Power BI -->
+    <iframe 
+        id="powerbiFrame"
+        class="report-iframe"
+        src="{{ report.iframe_url }}"
+        onload="hideLoading()"
+        onerror="showError()"
+        allowfullscreen="true">
+    </iframe>
+</div>
+
+<!-- Botão Flutuante para Tela Cheia -->
+<button class="btn btn-primary fullscreen-btn" onclick="toggleFullscreen()" title="Tela Cheia">
+    <i class="fas fa-expand fa-lg"></i>
+</button>
+
+<!-- Toast para Notificações -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="notificationToast" class="toast" role="alert">
+        <div class="toast-header">
+            <i class="fas fa-info-circle text-primary me-2"></i>
+            <strong class="me-auto">Portal Power BI</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toastMessage">
+            <!-- Mensagem será inserida aqui -->
+        </div>
+    </div>
+</div>
+
+<!-- Modal Informações do Relatório -->
+<div class="modal fade" id="reportInfoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle me-2"></i>Informações do Relatório
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-sm-4"><strong>Título:</strong></div>
+                    <div class="col-sm-8">{{ report.title }}</div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-sm-4"><strong>Categoria:</strong></div>
+                    <div class="col-sm-8">
+                        <span class="badge bg-secondary">{{ report.category }}</span>
+                    </div>
+                </div>
+                <hr>
+                {% if report.description %}
+                <div class="row">
+                    <div class="col-sm-4"><strong>Descrição:</strong></div>
+                    <div class="col-sm-8">{{ report.description }}</div>
+                </div>
+                <hr>
+                {% endif %}
+                <div class="row">
+                    <div class="col-sm-4"><strong>Criado em:</strong></div>
+                    <div class="col-sm-8">{{ report.created_at[:10] if report.created_at else 'N/A' }}</div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-sm-4"><strong>Status:</strong></div>
+                    <div class="col-sm-8">
+                        {% if report.get('active', True) %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-check me-1"></i>Ativo
+                            </span>
+                        {% else %}
+                            <span class="badge bg-warning">
+                                <i class="fas fa-pause me-1"></i>Inativo
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let isFullscreen = false;
+    let originalParent = null;
+
+    function hideLoading() {
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.style.opacity = '0';
+            setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+            }, 300);
+        }
+    }
+
+    function showError() {
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.innerHTML = `
+                <div class="text-center">
+                    <i class="fas fa-exclamation-triangle text-warning fa-3x mb-3"></i>
+                    <h5>Erro ao carregar relatório</h5>
+                    <p class="text-muted">Verifique se a URL do Power BI está correta</p>
+                    <button class="btn btn-primary" onclick="refreshReport()">
+                        <i class="fas fa-sync-alt me-2"></i>Tentar Novamente
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    function refreshReport() {
+        document.getElementById('loadingOverlay').style.display = 'flex';
+        const iframe = document.getElementById('powerbiFrame');
+        // Recarrega o iframe usando a mesma fonte
+        iframe.src = iframe.src;
+        showToast('Atualizando relatório...');
+    }
+
+    function toggleFullscreen() {
+        const container = document.getElementById('reportContainer');
+        const fullscreenBtn = document.querySelector('.fullscreen-btn');
+        
+        if (!isFullscreen) {
+            // Entrar em tela cheia
+            originalParent = container.parentNode;
+            container.classList.add('fullscreen-mode');
+            document.body.appendChild(container);
+            
+            // Criar botão de sair
+            const exitBtn = document.createElement('button');
+            exitBtn.className = 'btn btn-danger exit-fullscreen';
+            exitBtn.innerHTML = '<i class="fas fa-times fa-lg"></i>';
+            exitBtn.onclick = toggleFullscreen;
+            exitBtn.title = 'Sair da Tela Cheia';
+            container.appendChild(exitBtn);
+            
+            fullscreenBtn.innerHTML = '<i class="fas fa-compress fa-lg"></i>';
+            fullscreenBtn.title = 'Sair da Tela Cheia';
+            isFullscreen = true;
+            
+            showToast('Modo tela cheia ativado. Pressione ESC para sair.');
+        } else {
+            // Sair da tela cheia
+            container.classList.remove('fullscreen-mode');
+            originalParent.appendChild(container);
+            
+            // Remover botão de sair
+            const exitBtn = container.querySelector('.exit-fullscreen');
+            if (exitBtn) {
+                exitBtn.remove();
+            }
+            
+            fullscreenBtn.innerHTML = '<i class="fas fa-expand fa-lg"></i>';
+            fullscreenBtn.title = 'Tela Cheia';
+            isFullscreen = false;
+            
+            showToast('Saindo do modo tela cheia.');
+        }
+    }
+
+    function reportIssue() {
+        const reportTitle = "{{ report.title }}";
+        const subject = `Problema com relatório: ${reportTitle}`;
+        const body = `Olá,\n\nEstou reportando um problema com o relatório "${reportTitle}".\n\nDescrição do problema:\n[Descreva o problema aqui]\n\nURL do relatório: ${window.location.href}\n\nData/Hora: ${new Date().toLocaleString('pt-BR')}`;
+        
+        const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.location.href = mailtoLink;
+    }
+
+    function showReportInfo() {
+        new bootstrap.Modal(document.getElementById('reportInfoModal')).show();
+    }
+
+    function showToast(message) {
+        const toastElement = document.getElementById('notificationToast');
+        const messageElement = document.getElementById('toastMessage');
+        
+        messageElement.textContent = message;
+        const toast = new bootstrap.Toast(toastElement);
+        toast.show();
+    }
+
+    // Função openInNewTab removida para impedir o acesso externo ao PBI Service.
+
+    // Atalhos de teclado
+    document.addEventListener('keydown', function(e) {
+        // ESC para sair da tela cheia
+        if (e.key === 'Escape' && isFullscreen) {
+            toggleFullscreen();
+        }
+        
+        // F11 para tela cheia
+        if (e.key === 'F11') {
+            e.preventDefault();
+            toggleFullscreen();
+        }
+        
+        // F5 para atualizar
+        if (e.key === 'F5') {
+            e.preventDefault();
+            refreshReport();
+        }
+    });
+
+    // Ocultar loading após 10 segundos (fallback)
+    setTimeout(hideLoading, 10000);
+
+    // Adicionar animação de entrada
+    document.addEventListener('DOMContentLoaded', function() {
+        const elements = ['.report-header', '.report-controls', '.report-container'];
+        elements.forEach((selector, index) => {
+            const element = document.querySelector(selector);
+            if (element) {
+                element.style.opacity = '0';
+                element.style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    element.style.transition = 'all 0.5s ease';
+                    element.style.opacity = '1';
+                    element.style.transform = 'translateY(0)';
+                }, index * 200);
+            }
+        });
+    });
+
+    // Mostrar toast de boas-vindas
+    setTimeout(() => {
+        showToast('Use F11 para tela cheia ou F5 para atualizar o relatório');
+    }, 2000);
+</script>
+{% endblock %}
