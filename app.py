@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from functools import wraps
@@ -10,7 +10,9 @@ except ImportError:
     pass
 import os
 import json
+import hmac
 import secrets
+from urllib.parse import urlparse
 import logging
 from datetime import datetime
 import uuid
@@ -20,6 +22,12 @@ app.secret_key = os.environ.get('SECRET_KEY')
 if not app.secret_key:
     app.secret_key = secrets.token_hex(32)
     logging.warning("SECRET_KEY não definida: usando chave temporária (sessões caem a cada reinício)")
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    # true quando o app estiver atrás de HTTPS (cookie Secure não persiste em HTTP puro)
+    SESSION_COOKIE_SECURE=os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true',
+)
 
 # Configuração do Flask-Login
 login_manager = LoginManager()
@@ -555,6 +563,35 @@ def find_report_by_id(report_id):
 
 # ===== ROTAS =====
 
+def csrf_token():
+    """Token CSRF por sessão (usado nos formulários e no header X-CSRF-Token)."""
+    if '_csrf' not in session:
+        session['_csrf'] = secrets.token_urlsafe(32)
+    return session['_csrf']
+
+
+@app.context_processor
+def inject_csrf():
+    return {'csrf_token': csrf_token}
+
+
+@app.before_request
+def csrf_protect():
+    if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        sent = request.form.get('_csrf') or request.headers.get('X-CSRF-Token') or ''
+        expected = session.get('_csrf', '')
+        if not expected or not hmac.compare_digest(sent, expected):
+            return ('Requisição inválida (CSRF). Recarregue a página e tente de novo.', 400)
+
+
+def _is_safe_next(target):
+    """Só aceita redirecionamento para caminho relativo do próprio site."""
+    if not target:
+        return False
+    parts = urlparse(target)
+    return not parts.scheme and not parts.netloc and target.startswith('/') and not target.startswith('//')
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -571,7 +608,7 @@ def login():
                     login_user(user, remember=request.form.get('remember'))
                     next_page = request.args.get('next')
                     flash(f'Bem-vindo, {user.username}!', 'success')
-                    return redirect(next_page) if next_page else redirect(url_for('index'))
+                    return redirect(next_page) if _is_safe_next(next_page) else redirect(url_for('index'))
         
         flash('Usuário ou senha incorretos.', 'error')
     
@@ -636,7 +673,7 @@ def add_user():
     flash('Usuário criado com sucesso!', 'success')
     return redirect(url_for('manage_users'))
 
-@app.route('/toggle_user/<user_id>')
+@app.route('/toggle_user/<user_id>', methods=['POST'])
 @login_required
 @admin_required
 def toggle_user(user_id):
@@ -648,7 +685,7 @@ def toggle_user(user_id):
     
     return redirect(url_for('manage_users'))
 
-@app.route('/delete_user/<user_id>')
+@app.route('/delete_user/<user_id>', methods=['POST'])
 @login_required
 @admin_required
 def delete_user(user_id):
@@ -770,7 +807,7 @@ def edit_report(report_id):
     flash('Relatório atualizado com sucesso!', 'success')
     return redirect(url_for('admin'))
 
-@app.route('/delete_report/<report_id>')
+@app.route('/delete_report/<report_id>', methods=['POST'])
 @login_required
 @admin_required
 def delete_report(report_id):
@@ -794,7 +831,7 @@ def delete_report(report_id):
     
     return redirect(url_for('admin'))
 
-@app.route('/toggle_report/<report_id>')
+@app.route('/toggle_report/<report_id>', methods=['POST'])
 @login_required
 @admin_required
 def toggle_report(report_id):

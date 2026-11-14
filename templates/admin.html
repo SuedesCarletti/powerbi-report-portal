@@ -134,7 +134,7 @@
                                                     title="Editar">
                                                 <i class="fas fa-edit"></i>
                                             </button>
-                                            <a href="{{ url_for('toggle_report', report_id=report.id) }}" 
+                                            <a href="#" data-post-url="{{ url_for('toggle_report', report_id=report.id) }}" 
                                                class="btn btn-outline-info" 
                                                title="{% if report.get('active', True) %}Desativar{% else %}Ativar{% endif %}">
                                                 <i class="fas fa-{% if report.get('active', True) %}pause{% else %}play{% endif %}"></i>
@@ -174,6 +174,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('add_report') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="title" class="form-label">Título do Relatório *</label>
@@ -233,6 +234,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" id="editReportForm">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="edit_title" class="form-label">Título do Relatório *</label>
@@ -310,7 +312,7 @@
 
     function confirmDelete(reportId, reportTitle) {
         document.getElementById('deleteReportName').textContent = reportTitle;
-        document.getElementById('confirmDeleteBtn').href = `/delete_report/${reportId}`;
+        document.getElementById('confirmDeleteBtn').dataset.postUrl = `/delete_report/${reportId}`;
         new bootstrap.Modal(document.getElementById('confirmDeleteModal')).show();
     }
 

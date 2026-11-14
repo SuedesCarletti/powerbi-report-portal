@@ -205,7 +205,7 @@
                                             {% endif %}
                                             
                                             {% if user.id != current_user.id %}
-                                                <a href="{{ url_for('toggle_user', user_id=user.id) }}" 
+                                                <a href="#" data-post-url="{{ url_for('toggle_user', user_id=user.id) }}" 
                                                    class="btn btn-outline-info" 
                                                    title="{% if user.get('active', True) %}Desativar{% else %}Ativar{% endif %}">
                                                     <i class="fas fa-{% if user.get('active', True) %}pause{% else %}play{% endif %}"></i>
@@ -250,6 +250,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('add_user') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="username" class="form-label">Nome de Usuário *</label>
@@ -300,6 +301,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" id="permissionsForm">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                 <div class="modal-body">
                     <!-- Seleção do Tipo de Permissão -->
                     <div class="mb-4">
@@ -823,7 +825,7 @@
 
     function confirmDeleteUser(userId, username) {
         document.getElementById('deleteUserName').textContent = username;
-        document.getElementById('confirmDeleteUserBtn').href = `/delete_user/${userId}`;
+        document.getElementById('confirmDeleteUserBtn').dataset.postUrl = `/delete_user/${userId}`;
         new bootstrap.Modal(document.getElementById('confirmDeleteUserModal')).show();
     }
 

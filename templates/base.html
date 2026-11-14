@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Portal Power BI{% endblock %}</title>
@@ -235,5 +236,22 @@
         }, 5000);
     </script>
     {% block extra_js %}{% endblock %}
+<script>
+// Ações destrutivas (ativar/desativar/excluir) viram POST com token CSRF.
+document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-post-url]');
+    if (!el || !el.dataset.postUrl) return;
+    e.preventDefault();
+    var f = document.createElement('form');
+    f.method = 'POST';
+    f.action = el.dataset.postUrl;
+    var i = document.createElement('input');
+    i.type = 'hidden'; i.name = '_csrf';
+    i.value = document.querySelector('meta[name="csrf-token"]').content;
+    f.appendChild(i);
+    document.body.appendChild(f);
+    f.submit();
+});
+</script>
 </body>
 </html>

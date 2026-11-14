@@ -236,7 +236,7 @@ DATABASE_URL=postgresql://...  # Use PostgreSQL em produção
 
 ## 📝 Licença
 
-Este projeto é open source e está disponível sob a licença MIT.
+Todos os direitos reservados. Código publicado apenas para consulta e avaliação; veja o arquivo [LICENSE](LICENSE).
 
 ## 🤝 Contribuição
 
